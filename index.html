@@ -59,10 +59,13 @@
   .head button{border:none;background:none;color:var(--accent);font-size:13px;cursor:pointer;
                text-transform:none;letter-spacing:0;font-family:inherit}
   ul{list-style:none;margin:0;padding:0 0 8px}
-  li{display:flex;align-items:center;gap:14px;padding:10px 16px;min-height:50px}
+  li{display:flex;align-items:center;gap:14px;padding:10px 16px;min-height:50px;touch-action:manipulation}
   input[type=checkbox]{width:22px;height:22px;accent-color:var(--accent);cursor:pointer;flex:none;margin:0}
-  .txt{flex:1;min-width:0;font-size:16px;word-break:break-word}
+  .txt{flex:1;min-width:0;font-size:16px;word-break:break-word;-webkit-user-select:none;user-select:none;
+       -webkit-touch-callout:none}
   li.done .txt{text-decoration:line-through;text-decoration-thickness:1px;color:var(--muted)}
+  .edit{flex:1;min-width:0;font-size:16px;border:none;border-bottom:1px solid var(--accent);background:transparent;
+        color:var(--text);padding:4px 0;font-family:inherit;outline:none}
   .del{border:none;background:none;color:var(--muted);font-size:22px;cursor:pointer;
        opacity:.6;padding:4px 6px;flex:none}
   .empty{color:var(--muted);padding:6px 16px 14px;font-size:14px}
@@ -143,6 +146,27 @@
     sel.value = state.active;
   }
 
+  // Çift dokunuşla düzenleme
+  let lastTap = { it: null, t: 0 };
+  function startEdit(it, span){
+    const inp = document.createElement("input");
+    inp.className = "edit"; inp.value = it.text; inp.enterKeyHint = "done";
+    span.replaceWith(inp);
+    inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length);
+    let closed = false;
+    const finish = keep => {
+      if (closed) return; closed = true;
+      const v = inp.value.trim();
+      if (keep && v && v !== it.text) { it.text = v; save(); }
+      render();
+    };
+    inp.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); finish(true); }
+      if (e.key === "Escape") finish(false);
+    });
+    inp.addEventListener("blur", () => finish(true));
+  }
+
   function render(){
     const items = list().items;
     const a = $("aktif"), b = $("biten");
@@ -156,6 +180,11 @@
       cb.onchange = () => { it.done = cb.checked; it.t = Date.now(); save(); render(); };
       const s = document.createElement("span");
       s.className = "txt"; s.textContent = it.text;
+      s.onclick = () => {
+        const now = Date.now();
+        if (lastTap.it === it && now - lastTap.t < 400) { lastTap = { it: null, t: 0 }; startEdit(it, s); }
+        else lastTap = { it, t: now };
+      };
       const d = document.createElement("button");
       d.className = "del"; d.textContent = "×"; d.type = "button";
       d.onclick = () => { list().items = list().items.filter(x => x !== it); save(); render(); };
