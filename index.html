@@ -7,7 +7,7 @@
 <meta name="apple-mobile-web-app-title" content="Yapılacaklar">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="theme-color" content="#f3f5f7">
-<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="apple-touch-icon" href="icon-180.png?v=2">
 <link rel="manifest" href="manifest.json">
 <title>Yapılacaklar</title>
 <style>
@@ -29,7 +29,14 @@
        padding-right:max(16px, env(safe-area-inset-right, 0px));}
   .card{max-width:520px;margin:0 auto;background:var(--card);border-radius:12px;
         box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden}
-  h1{font-size:22px;font-weight:400;margin:0;padding:20px 16px 8px}
+  .picker{position:relative;display:inline-flex;align-items:center;margin:14px 8px 4px;
+          padding:6px 10px;border-radius:8px}
+  .picker:hover{background:var(--hover)}
+  .picker select{appearance:none;-webkit-appearance:none;border:none;background:transparent;
+          color:var(--text);font:400 22px/1.2 inherit;font-family:inherit;padding-right:26px;cursor:pointer;outline:none}
+  .picker::after{content:"";position:absolute;right:12px;top:50%;width:8px;height:8px;
+          border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
+          transform:translateY(-70%) rotate(45deg);pointer-events:none}
   .add{display:flex;align-items:center;gap:8px;padding:8px 16px 12px}
   .add input{flex:1;min-width:0;border:none;border-bottom:1px solid var(--line);background:transparent;
              color:var(--text);font-size:16px;padding:10px 2px;outline:none;font-family:inherit}
@@ -55,25 +62,41 @@
 </head>
 <body>
 <div class="card">
-  <h1>Yapılacaklar</h1>
+  <label class="picker" aria-label="Liste seç">
+    <select id="liste">
+      <option value="yap">Yapılacaklar</option>
+      <option value="alis">Alışveriş Listesi</option>
+    </select>
+  </label>
   <form class="add" id="f">
     <input id="yeni" placeholder="Öğe ekle" autocomplete="off" enterkeyhint="done">
     <button type="submit" aria-label="Ekle">+</button>
   </form>
   <hr>
-  <div class="head"><span>Yapılacak</span></div>
+  <div class="head"><span id="baslik">Yapılacak</span></div>
   <ul id="aktif"></ul>
   <hr>
   <div class="head"><span>Tamamlandı</span><button id="temizle" type="button">Tamamlananları sil</button></div>
   <ul id="biten"></ul>
 </div>
 <script>
-  const KEY = "yapilacaklar-v1";
-  let items = [];
-  try { const l = JSON.parse(localStorage.getItem(KEY)); if (Array.isArray(l)) items = l; } catch(e) {}
-  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(items)); } catch(e) {} };
+  const KEY = "yapilacaklar-v2";
+  let state = null;
+  try { state = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
+  if (!state || !state.lists) {
+    let eski = [];
+    try { const l = JSON.parse(localStorage.getItem("yapilacaklar-v1")); if (Array.isArray(l)) eski = l; } catch(e) {}
+    state = { active: "yap", lists: { yap: { items: eski }, alis: { items: [] } } };
+  }
+  for (const k of ["yap", "alis"]) if (!state.lists[k]) state.lists[k] = { items: [] };
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };
+  const sel = document.getElementById("liste");
+  sel.value = state.active in state.lists ? state.active : "yap";
+  const list = () => state.lists[sel.value];
 
   function render(){
+    const items = list().items;
+    document.getElementById("baslik").textContent = sel.value === "alis" ? "Alınacak" : "Yapılacak";
     const a = document.getElementById("aktif"), b = document.getElementById("biten");
     a.innerHTML = ""; b.innerHTML = "";
     const aktif = items.filter(i => !i.done), biten = items.filter(i => i.done).sort((x,y)=>y.t-x.t);
@@ -87,24 +110,25 @@
       s.className = "txt"; s.textContent = it.text;
       const d = document.createElement("button");
       d.className = "del"; d.textContent = "×"; d.type = "button";
-      d.onclick = () => { items = items.filter(x => x !== it); save(); render(); };
+      d.onclick = () => { list().items = list().items.filter(x => x !== it); save(); render(); };
       li.append(cb, s, d);
       (it.done ? b : a).appendChild(li);
     }
-    if (!aktif.length) a.innerHTML = '<div class="empty">Yapılacak bir şey yok</div>';
+    if (!aktif.length) a.innerHTML = '<div class="empty">Liste boş</div>';
     if (!biten.length) b.innerHTML = '<div class="empty">Henüz tamamlanan yok</div>';
     document.getElementById("temizle").hidden = !biten.length;
   }
 
+  sel.onchange = () => { state.active = sel.value; save(); render(); };
   document.getElementById("f").onsubmit = e => {
     e.preventDefault();
     const inp = document.getElementById("yeni"), v = inp.value.trim();
     if (!v) return;
-    items.unshift({ text: v, done: false, t: Date.now() });
+    list().items.unshift({ text: v, done: false, t: Date.now() });
     inp.value = ""; save(); render();
   };
   document.getElementById("temizle").onclick = () => {
-    items = items.filter(i => !i.done); save(); render();
+    list().items = list().items.filter(i => !i.done); save(); render();
   };
   render();
 
