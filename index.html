@@ -14,11 +14,12 @@
   :root{
     --bg:#f3f5f7; --card:#ffffff; --text:#1f2328; --muted:#6b737c;
     --line:#e3e7eb; --accent:#0398dc; --hover:#f1f4f7; --onaccent:#ffffff;
+    --danger:#d93025; --shade:rgba(0,0,0,.35);
   }
   @media (prefers-color-scheme: dark){
     :root{ --bg:#101214; --card:#1b1e21; --text:#e4e7ea; --muted:#9aa1a8;
            --line:#2c3035; --accent:#29b2f0; --hover:#24282c; --onaccent:#0b1620;
-           color-scheme:dark; }
+           --danger:#ff6b5e; --shade:rgba(0,0,0,.6); color-scheme:dark; }
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
@@ -28,15 +29,24 @@
        padding-left:max(16px, env(safe-area-inset-left, 0px));
        padding-right:max(16px, env(safe-area-inset-right, 0px));}
   .card{max-width:520px;margin:0 auto;background:var(--card);border-radius:12px;
-        box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:hidden}
-  .picker{position:relative;display:inline-flex;align-items:center;margin:14px 8px 4px;
-          padding:6px 10px;border-radius:8px}
-  .picker:hover{background:var(--hover)}
-  .picker select{appearance:none;-webkit-appearance:none;border:none;background:transparent;
-          color:var(--text);font:400 22px/1.2 inherit;font-family:inherit;padding-right:26px;cursor:pointer;outline:none}
+        box-shadow:0 1px 3px rgba(0,0,0,.12);overflow:visible}
+  .top{display:flex;align-items:center;justify-content:space-between;padding:14px 8px 4px;position:relative}
+  .picker{position:relative;display:inline-flex;align-items:center;padding:6px 10px;border-radius:8px;min-width:0}
+  .picker select{appearance:none;-webkit-appearance:none;border:none;background:transparent;max-width:100%;
+          color:var(--text);font-size:22px;font-weight:400;font-family:inherit;padding-right:26px;cursor:pointer;outline:none;
+          text-overflow:ellipsis}
   .picker::after{content:"";position:absolute;right:12px;top:50%;width:8px;height:8px;
           border-right:2px solid var(--muted);border-bottom:2px solid var(--muted);
           transform:translateY(-70%) rotate(45deg);pointer-events:none}
+  .more{border:none;background:none;color:var(--muted);font-size:24px;line-height:1;padding:6px 12px;
+        border-radius:8px;cursor:pointer;flex:none}
+  .menu{position:absolute;right:8px;top:54px;background:var(--card);border-radius:10px;z-index:5;
+        box-shadow:0 4px 18px rgba(0,0,0,.18);overflow:hidden;min-width:190px}
+  .menu button{display:block;width:100%;text-align:left;border:none;background:none;color:var(--text);
+        font-size:16px;padding:13px 16px;font-family:inherit;cursor:pointer}
+  .menu button:hover{background:var(--hover)}
+  .menu button.danger{color:var(--danger)}
+  .menu button:disabled{opacity:.4}
   .add{display:flex;align-items:center;gap:8px;padding:8px 16px 12px}
   .add input{flex:1;min-width:0;border:none;border-bottom:1px solid var(--line);background:transparent;
              color:var(--text);font-size:16px;padding:10px 2px;outline:none;font-family:inherit}
@@ -57,47 +67,85 @@
        opacity:.6;padding:4px 6px;flex:none}
   .empty{color:var(--muted);padding:6px 16px 14px;font-size:14px}
   hr{border:none;border-top:1px solid var(--line);margin:0}
+  .shade{position:fixed;inset:0;background:var(--shade);display:flex;align-items:center;justify-content:center;
+         padding:16px;z-index:10}
+  .dlg{background:var(--card);border-radius:14px;width:100%;max-width:340px;padding:20px 18px 12px;
+       box-shadow:0 10px 30px rgba(0,0,0,.25)}
+  .dlg h2{font-size:18px;font-weight:500;margin:0 0 6px}
+  .dlg p{margin:0 0 8px;color:var(--muted);font-size:15px}
+  .dlg input{width:100%;font-size:16px;padding:10px 2px;border:none;border-bottom:1px solid var(--accent);
+       background:transparent;color:var(--text);outline:none;font-family:inherit;margin:6px 0 10px}
+  .btns{display:flex;justify-content:flex-end;gap:4px}
+  .btns button{border:none;background:none;font-size:16px;padding:10px 14px;border-radius:8px;
+       color:var(--accent);font-family:inherit;cursor:pointer;font-weight:500}
+  .btns button.danger{color:var(--danger)}
   [hidden]{display:none!important}
 </style>
 </head>
 <body>
 <div class="card">
-  <label class="picker" aria-label="Liste seç">
-    <select id="liste">
-      <option value="yap">Yapılacaklar</option>
-      <option value="alis">Alışveriş Listesi</option>
-    </select>
-  </label>
+  <div class="top">
+    <label class="picker" aria-label="Liste seç"><select id="liste"></select></label>
+    <button class="more" id="more" type="button" aria-label="Liste seçenekleri">⋯</button>
+    <div class="menu" id="menu" hidden>
+      <button type="button" id="mYeni">Yeni liste</button>
+      <button type="button" id="mAd">Yeniden adlandır</button>
+      <button type="button" id="mSil" class="danger">Listeyi sil</button>
+    </div>
+  </div>
   <form class="add" id="f">
     <input id="yeni" placeholder="Öğe ekle" autocomplete="off" enterkeyhint="done">
     <button type="submit" aria-label="Ekle">+</button>
   </form>
   <hr>
-  <div class="head"><span id="baslik">Yapılacak</span></div>
+  <div class="head"><span>Yapılacak</span></div>
   <ul id="aktif"></ul>
   <hr>
   <div class="head"><span>Tamamlandı</span><button id="temizle" type="button">Tamamlananları sil</button></div>
   <ul id="biten"></ul>
 </div>
+<div class="shade" id="shade" hidden>
+  <form class="dlg" id="dlg">
+    <h2 id="dT"></h2>
+    <p id="dP" hidden></p>
+    <input id="dI" autocomplete="off" maxlength="40" enterkeyhint="done">
+    <div class="btns">
+      <button type="button" id="dNo">Vazgeç</button>
+      <button type="submit" id="dOk">Tamam</button>
+    </div>
+  </form>
+</div>
 <script>
-  const KEY = "yapilacaklar-v2";
+  const KEY = "yapilacaklar-v3";
   let state = null;
   try { state = JSON.parse(localStorage.getItem(KEY)); } catch(e) {}
-  if (!state || !state.lists) {
-    let eski = [];
-    try { const l = JSON.parse(localStorage.getItem("yapilacaklar-v1")); if (Array.isArray(l)) eski = l; } catch(e) {}
-    state = { active: "yap", lists: { yap: { items: eski }, alis: { items: [] } } };
+  if (!state || !Array.isArray(state.order) || !state.order.length) {
+    let v2 = null, v1 = [];
+    try { v2 = JSON.parse(localStorage.getItem("yapilacaklar-v2")); } catch(e) {}
+    try { const l = JSON.parse(localStorage.getItem("yapilacaklar-v1")); if (Array.isArray(l)) v1 = l; } catch(e) {}
+    const L = v2 && v2.lists || {};
+    state = { active: (v2 && v2.active) || "yap", order: ["yap", "alis"], lists: {
+      yap: { name: "Yapılacaklar", items: (L.yap && L.yap.items) || v1 },
+      alis: { name: "Alışveriş Listesi", items: (L.alis && L.alis.items) || [] } } };
   }
-  for (const k of ["yap", "alis"]) if (!state.lists[k]) state.lists[k] = { items: [] };
   const save = () => { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch(e) {} };
-  const sel = document.getElementById("liste");
-  sel.value = state.active in state.lists ? state.active : "yap";
-  const list = () => state.lists[sel.value];
+  const $ = id => document.getElementById(id);
+  const sel = $("liste");
+  if (!state.lists[state.active]) state.active = state.order[0];
+  const list = () => state.lists[state.active];
+
+  function fillSelect(){
+    sel.innerHTML = "";
+    for (const id of state.order) {
+      const o = document.createElement("option"); o.value = id; o.textContent = state.lists[id].name; sel.appendChild(o);
+    }
+    const n = document.createElement("option"); n.value = "__new"; n.textContent = "+ Yeni liste"; sel.appendChild(n);
+    sel.value = state.active;
+  }
 
   function render(){
     const items = list().items;
-    document.getElementById("baslik").textContent = sel.value === "alis" ? "Alınacak" : "Yapılacak";
-    const a = document.getElementById("aktif"), b = document.getElementById("biten");
+    const a = $("aktif"), b = $("biten");
     a.innerHTML = ""; b.innerHTML = "";
     const aktif = items.filter(i => !i.done), biten = items.filter(i => i.done).sort((x,y)=>y.t-x.t);
     for (const it of [...aktif, ...biten]) {
@@ -116,21 +164,62 @@
     }
     if (!aktif.length) a.innerHTML = '<div class="empty">Liste boş</div>';
     if (!biten.length) b.innerHTML = '<div class="empty">Henüz tamamlanan yok</div>';
-    document.getElementById("temizle").hidden = !biten.length;
+    $("temizle").hidden = !biten.length;
   }
 
-  sel.onchange = () => { state.active = sel.value; save(); render(); };
-  document.getElementById("f").onsubmit = e => {
+  function dialog({ title, text, value, input = true, ok = "Tamam", danger = false }){
+    return new Promise(res => {
+      $("dT").textContent = title;
+      $("dP").hidden = !text; $("dP").textContent = text || "";
+      $("dI").hidden = !input; $("dI").value = value || "";
+      $("dOk").textContent = ok; $("dOk").className = danger ? "danger" : "";
+      $("shade").hidden = false;
+      if (input) setTimeout(() => $("dI").focus(), 50);
+      const done = v => { $("shade").hidden = true; $("dlg").onsubmit = $("dNo").onclick = null; res(v); };
+      $("dlg").onsubmit = e => { e.preventDefault(); done(input ? $("dI").value.trim() : true); };
+      $("dNo").onclick = () => done(null);
+    });
+  }
+
+  async function newList(){
+    const name = await dialog({ title: "Yeni liste", ok: "Ekle" });
+    if (name) {
+      const id = "l" + Date.now();
+      state.lists[id] = { name, items: [] }; state.order.push(id); state.active = id; save();
+    }
+    fillSelect(); render();
+  }
+
+  sel.onchange = () => {
+    if (sel.value === "__new") { sel.value = state.active; newList(); return; }
+    state.active = sel.value; save(); render();
+  };
+  $("more").onclick = e => { e.stopPropagation(); $("mSil").disabled = state.order.length < 2; $("menu").hidden = !$("menu").hidden; };
+  document.addEventListener("click", e => { if (!$("menu").contains(e.target)) $("menu").hidden = true; });
+  $("mYeni").onclick = () => { $("menu").hidden = true; newList(); };
+  $("mAd").onclick = async () => {
+    $("menu").hidden = true;
+    const name = await dialog({ title: "Listeyi yeniden adlandır", value: list().name, ok: "Kaydet" });
+    if (name) { list().name = name; save(); fillSelect(); }
+  };
+  $("mSil").onclick = async () => {
+    $("menu").hidden = true;
+    if (state.order.length < 2) return;
+    const ok = await dialog({ title: "Listeyi sil", text: "\u201C" + list().name + "\u201D ve içindeki her şey silinecek.", input: false, ok: "Sil", danger: true });
+    if (!ok) return;
+    delete state.lists[state.active];
+    state.order = state.order.filter(id => id !== state.active);
+    state.active = state.order[0]; save(); fillSelect(); render();
+  };
+  $("f").onsubmit = e => {
     e.preventDefault();
-    const inp = document.getElementById("yeni"), v = inp.value.trim();
+    const inp = $("yeni"), v = inp.value.trim();
     if (!v) return;
     list().items.unshift({ text: v, done: false, t: Date.now() });
     inp.value = ""; save(); render();
   };
-  document.getElementById("temizle").onclick = () => {
-    list().items = list().items.filter(i => !i.done); save(); render();
-  };
-  render();
+  $("temizle").onclick = () => { list().items = list().items.filter(i => !i.done); save(); render(); };
+  fillSelect(); render();
 
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js");
 </script>
